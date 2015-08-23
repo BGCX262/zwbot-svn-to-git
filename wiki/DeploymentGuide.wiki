@@ -1,0 +1,95 @@
+#labels Featured,Phase-Deploy
+ * This Deployment Guide documents relevant information regarding the deployment, configuration and administration of *zwbot*
+
+= Introduction =
+
+{{{
+在 Google App Engine (GAE) 上部署中文单词机器人前，您需要首先阅读这篇文档的注意事项，并且修改对应文件中的相关参数，以便和您自己的Twitter bot帐号相绑定。
+这里的部分参数修改不仅仅涉及到bot的正常运行，还包括bot的安全等相关问题，请您仔细阅读此文档并修改相应内容后在上传代码到GAE上！
+}}}
+<br>
+= Details =
+更新说明：从 zwbot r13 版本开始，所有可配置内容均集中在config.py内。如果源码中没有config.py，请下载并同步到最新版本
+<hr>
+= config.py 配置说明 =
+ # == 修改OAuth配置信息 ==
+  Consumer Key 和 Access Token 可以在 dev.twitter.com 中查到，直接指定 Access Token 可以免去Twitter二次认证的麻烦
+{{{
+## OAuth认证需要的 Consumer Key 和 Access Token
+## August 31, 2010, Basic Auth has been deprecated. All applications must now use OAuth
+CONSUMER_KEY = ''
+CONSUMER_SECRET = ''
+ACCESS_TOKEN = ''
+ACCESS_SECRET = ''
+}}}
+  您可以在App的Application details页中找到它们的取值：
+  [http://zwbot.googlecode.com/files/OAuth_Keys_Help.gif]
+  <br>
+ # == 配置词库 ==
+  词库是单词bot的灵魂，请参照 sample_dict.xls 中的词库格式说明修改bot的词库和行数设置，并部署您的词库。<br>当然，在下载页中也提供了几个基本的词库供您选择
+{{{
+## 词库配置
+DICT_NAME       = 'static/dict_cet4_corewords_l693.xls'  # 词库名，注意是绝对路径
+DICT_LINES      = 693                             # 词库中记录条数 (达到此条数会自动从头开始播放)
+}}}
+ # == 修改后台的访问入口 ==
+  目前 zwbot 的代码中没有访问认证机制，采用后门式安全认证。您需要自行指定以下几个请求的地址，以防止被他人利用
+{{{
+## 访问路径
+URL_MENTIONS    = '/backdoor2checkmentions'       # 提及页面
+KEY_FOBACK_ALL  = '/AutoFollowBack'               # 回Fo动作的触发名 (注意要和Cron.yaml中的保持同步)
+# 请修改此 CronJob Key 为其他人无法猜到的字符串，以防被人利用 (注意要和Cron.yaml中的保持同步)
+KEY_CRONJOB     = '/InputYourCronJobKeyHere'
+URL_SENDTWEET   = '/backdoor2tweet'               # 手动发Tweet到Twitter (例如请求: /tweet2bot?msg='Hello World!')
+}}}
+  请尽可能保证这四个请求字段不被其他人猜到，建议使用这样的 *KEY_CRONJOB*
+{{{
+  1. 前缀+MD5 或 前缀+Base64，如 KEY_CRONJOB = '/CRONJOB_KEY_EEFCA0243D5E2107AA720E7E0BA1075F'
+  2. 长度超过32个字符的无空格短语，如 KEY_CRONJOB = 'SomeKeyOtherPeopleDoNotKnown_TheLongerTheBetter'
+}}}
+  注意：修改 *KEY_CRONJOB*/*KEY_FOBACK_ALL* 后，还需要修改 *cron.yaml* 中的请求地址，使其保持一致
+{{{
+- description: (Cron Job) to execute program
+  url: /InputYourCronJobKeyHere -> /CRONJOB_KEY_EEFCA0243D5E2107AA720E7E0BA1075F
+  schedule: every 5 mins
+  timezone: Asia/Shanghai
+
+- description: Auto follow back
+  url: /AutoFollowBack -> /SomeFollowURI_OtherPeopleDoNotKnown
+  schedule: every 23 hours
+  timezone: Asia/Shanghai
+}}}
+  <br>
+  对于提及页的请求名 *URL_MENTIONS* 和发送Tweet的接口 *URL_SENDTWEET* ，可以使用别人不知道的组合，例如
+{{{
+1. mention页：zwbot_mention_page
+2. 手动发送Tweet：zwbot_send_tweet
+}}}
+  此时发送tweet到bot可以通过访问：_yourappname_.appspot.com/*zwbot_send_tweet*?msg='测试'
+<hr>
+ * == 其他配置选项 ==
+  * *BOT_HASHTAG* 用于标识复习推和词库中的标题行，当需要查看所有复习推时可以点击这个HashTag来索引tweets(当前Twitter的HashTag索引不稳定，无法使用)<br>请将此HashTag改成独立的标签以便于标识你的bot，如果不需要请留空
+{{{
+BOT_HASHTAG     = ' #zwbot'                       # 特殊推中的HashTag，用于复习索引 (不需要请留空)
+}}}
+  * 单词的连接符
+   您可能已经注意到了，单词在输出时，会比词库中的内容多了几个连接符和分隔符：
+{{{
+# 单词的连接符和分隔符
+TW_WORD_LINK    = ' - '                           # 单元格A和单元格B之间的连接符
+TW_WORD_SP      = '; '                            # 单元格B和单元格C之间的分隔符
+}}}
+   以下例子说明了词库单元格与连接符之间的关系：
+    || acentric 无中心的 || a+centric 中心的 ||
+   输出如下："*acentric 无中心的 - a+centric 中心的*"
+    || blast || n.爆炸；气流 || vi.炸 ||
+   输出如下："*blast - n.爆炸；气流; vi.炸*"
+    || redeem || `[ri'di:m]` || vt.赎回, 挽回, 恢复, 补偿, 兑换 ||
+   输出如下："*redeem - `[ri'di:m]`; vt.赎回, 挽回, 恢复, 补偿, 兑换*"<br>
+   可以看到，如果是第三种词库，这个输出可能并不是我们想要的。此时可以修改连接符如下：
+{{{
+TW_WORD_LINK    = ' '                           # 单词与音标之间有一个空格
+TW_WORD_SP      = ' - '                            # 音标与解释之间有一个连接符
+}}}
+   修改后的输出："*redeem `[ri'di:m]` - vt.赎回, 挽回, 恢复, 补偿, 兑换*"<br>
+  _更多支持的词库格式请参考static/sample_dict.xls中的说明_

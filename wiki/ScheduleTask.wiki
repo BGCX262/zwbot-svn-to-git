@@ -1,0 +1,10 @@
+#labels Phase-Support
+# 定时推送功能介绍
+
+= 定时推送功能 =
+
+ * 访问 <your appspot>/ScheduleTask，在页面中可以查看和新增任务
+  http://zwbot.googlecode.com/files/Page_ScheduleTask.gif
+
+ * 如需修改，请在[https://appengine.google.com appspot后台]的 Data->Datastore Viewer 中查看 ScheduleTaskDb 的内容
+  http://zwbot.googlecode.com/files/ScheduleTaskDb_View.gif
